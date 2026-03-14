@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     REQUEST_TIMEOUT_SECONDS: int = 30
     LOG_LEVEL: str = "INFO"
     PORT: int = 8080
+    ENABLE_DEBUG_REDACTION_LOGS: bool = False
 
     class Config:
         env_file = ".env"

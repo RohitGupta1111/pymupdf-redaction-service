@@ -4,6 +4,7 @@ import logging
 import fitz  # PyMuPDF
 from app.schemas import RedactionRectangle
 from app.config import settings
+from app.logging_config import debug_logs_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -131,16 +132,17 @@ def redact_pdf_bytes(
             page_rect = page.rect
             H = page_rect.height
 
-            logger.info(
-                "[redactor] page_meta page=%s rect=%s (width=%s height=%s) rotation=%s mediabox=%s cropbox=%s",
-                page_index,
-                page_rect,
-                page_rect.width,
-                page_rect.height,
-                getattr(page, "rotation", None),
-                getattr(page, "mediabox", None),
-                getattr(page, "cropbox", None),
-            )
+            if debug_logs_enabled(settings):
+                logger.debug(
+                    "[redactor] page_meta page=%s rect=%s (width=%s height=%s) rotation=%s mediabox=%s cropbox=%s",
+                    page_index,
+                    page_rect,
+                    page_rect.width,
+                    page_rect.height,
+                    getattr(page, "rotation", None),
+                    getattr(page, "mediabox", None),
+                    getattr(page, "cropbox", None),
+                )
 
             # [verify] before redaction: check if sentinel strings are present
             try:
@@ -148,42 +150,45 @@ def redact_pdf_bytes(
             except Exception:
                 page_text_before = ""
             contains_write_main_before, contains_think_about_before = _check_sentinels(page_text_before)
-            logger.info(
-                "[verify] page=%s before_redaction contains_write_main=%s contains_think_about=%s",
-                page_index,
-                contains_write_main_before,
-                contains_think_about_before,
-            )
+            if debug_logs_enabled(settings):
+                logger.debug(
+                    "[verify] page=%s before_redaction contains_write_main=%s contains_think_about=%s",
+                    page_index,
+                    contains_write_main_before,
+                    contains_think_about_before,
+                )
 
             for rect_spec in rectangles_by_page[page_index]:
                 bbox = tuple(rect_spec.bbox)
                 x0, y0, x1, y1 = bbox
 
-                # Log orig rect and text in orig rect
-                rect_orig = fitz.Rect(x0, y0, x1, y1)
-                text_orig = _text_in_rect(page, rect_orig)
-                logger.info(
-                    '[redactor] rect_test page=%s orig=[%s,%s,%s,%s] text_orig="%s"',
-                    page_index,
-                    x0,
-                    y0,
-                    x1,
-                    y1,
-                    text_orig,
-                )
+                # Log orig rect and text in orig rect (debug only - contains extracted text)
+                if debug_logs_enabled(settings):
+                    rect_orig = fitz.Rect(x0, y0, x1, y1)
+                    text_orig = _text_in_rect(page, rect_orig)
+                    logger.debug(
+                        '[redactor] rect_test page=%s orig=[%s,%s,%s,%s] text_orig="%s"',
+                        page_index,
+                        x0,
+                        y0,
+                        x1,
+                        y1,
+                        text_orig,
+                    )
 
-                # Compute flipped rect (bottom-left -> top-left style) and log text
-                rect_flip = fitz.Rect(x0, H - y1, x1, H - y0)
-                text_flip = _text_in_rect(page, rect_flip)
-                logger.info(
-                    '[redactor] rect_test page=%s flip=[%s,%s,%s,%s] text_flip="%s"',
-                    page_index,
-                    x0,
-                    H - y1,
-                    x1,
-                    H - y0,
-                    text_flip,
-                )
+                # Compute flipped rect (bottom-left -> top-left style) and log text (debug only)
+                if debug_logs_enabled(settings):
+                    rect_flip = fitz.Rect(x0, H - y1, x1, H - y0)
+                    text_flip = _text_in_rect(page, rect_flip)
+                    logger.debug(
+                        '[redactor] rect_test page=%s flip=[%s,%s,%s,%s] text_flip="%s"',
+                        page_index,
+                        x0,
+                        H - y1,
+                        x1,
+                        H - y0,
+                        text_flip,
+                    )
 
                 if not _bbox_intersects_page(page_rect, bbox):
                     rectangles_skipped_out_of_bounds += 1
@@ -223,28 +228,35 @@ def redact_pdf_bytes(
             except Exception:
                 page_text_after = ""
             contains_write_main_after, contains_think_about_after = _check_sentinels(page_text_after)
-            logger.info(
-                "[verify] page=%s after_apply_redactions contains_write_main=%s contains_think_about=%s",
-                page_index,
-                contains_write_main_after,
-                contains_think_about_after,
-            )
+            if debug_logs_enabled(settings):
+                logger.debug(
+                    "[verify] page=%s after_apply_redactions contains_write_main=%s contains_think_about=%s",
+                    page_index,
+                    contains_write_main_after,
+                    contains_think_about_after,
+                )
             if contains_write_main_after:
-                excerpt = _excerpt_around(page_text_after, SENTINEL_WRITE_MAIN)
-                logger.warning(
-                    '[verify] WARNING page=%s still_contains="%s"',
-                    page_index,
-                    SENTINEL_WRITE_MAIN,
-                )
-                logger.warning('[verify] excerpt="%s"', excerpt)
+                if debug_logs_enabled(settings):
+                    excerpt = _excerpt_around(page_text_after, SENTINEL_WRITE_MAIN)
+                    logger.warning(
+                        '[verify] WARNING page=%s still_contains="%s"',
+                        page_index,
+                        SENTINEL_WRITE_MAIN,
+                    )
+                    logger.warning('[verify] excerpt="%s"', excerpt)
+                else:
+                    logger.warning("Page %s: redaction verification failed (sentinel content still present)", page_index)
             if contains_think_about_after:
-                excerpt = _excerpt_around(page_text_after, SENTINEL_THINK_ABOUT)
-                logger.warning(
-                    '[verify] WARNING page=%s still_contains="%s"',
-                    page_index,
-                    SENTINEL_THINK_ABOUT,
-                )
-                logger.warning('[verify] excerpt="%s"', excerpt)
+                if debug_logs_enabled(settings):
+                    excerpt = _excerpt_around(page_text_after, SENTINEL_THINK_ABOUT)
+                    logger.warning(
+                        '[verify] WARNING page=%s still_contains="%s"',
+                        page_index,
+                        SENTINEL_THINK_ABOUT,
+                    )
+                    logger.warning('[verify] excerpt="%s"', excerpt)
+                else:
+                    logger.warning("Page %s: redaction verification failed (sentinel content still present)", page_index)
 
         output_bytes = doc.tobytes(garbage=4, deflate=True)
 
@@ -259,28 +271,35 @@ def redact_pdf_bytes(
                     except Exception:
                         reopen_text = ""
                     contains_write_main_reopen, contains_think_about_reopen = _check_sentinels(reopen_text)
-                    logger.info(
-                        "[verify] reopen page=%s contains_write_main=%s contains_think_about=%s",
-                        page_index,
-                        contains_write_main_reopen,
-                        contains_think_about_reopen,
-                    )
+                    if debug_logs_enabled(settings):
+                        logger.debug(
+                            "[verify] reopen page=%s contains_write_main=%s contains_think_about=%s",
+                            page_index,
+                            contains_write_main_reopen,
+                            contains_think_about_reopen,
+                        )
                     if contains_write_main_reopen:
-                        excerpt = _excerpt_around(reopen_text, SENTINEL_WRITE_MAIN)
-                        logger.warning(
-                            '[verify] WARNING page=%s still_contains="%s"',
-                            page_index,
-                            SENTINEL_WRITE_MAIN,
-                        )
-                        logger.warning('[verify] excerpt="%s"', excerpt)
+                        if debug_logs_enabled(settings):
+                            excerpt = _excerpt_around(reopen_text, SENTINEL_WRITE_MAIN)
+                            logger.warning(
+                                '[verify] WARNING page=%s still_contains="%s"',
+                                page_index,
+                                SENTINEL_WRITE_MAIN,
+                            )
+                            logger.warning('[verify] excerpt="%s"', excerpt)
+                        else:
+                            logger.warning("Page %s: redaction verification failed after reopen (content still present)", page_index)
                     if contains_think_about_reopen:
-                        excerpt = _excerpt_around(reopen_text, SENTINEL_THINK_ABOUT)
-                        logger.warning(
-                            '[verify] WARNING page=%s still_contains="%s"',
-                            page_index,
-                            SENTINEL_THINK_ABOUT,
-                        )
-                        logger.warning('[verify] excerpt="%s"', excerpt)
+                        if debug_logs_enabled(settings):
+                            excerpt = _excerpt_around(reopen_text, SENTINEL_THINK_ABOUT)
+                            logger.warning(
+                                '[verify] WARNING page=%s still_contains="%s"',
+                                page_index,
+                                SENTINEL_THINK_ABOUT,
+                            )
+                            logger.warning('[verify] excerpt="%s"', excerpt)
+                        else:
+                            logger.warning("Page %s: redaction verification failed after reopen (content still present)", page_index)
             finally:
                 doc2.close()
         except Exception as e:
