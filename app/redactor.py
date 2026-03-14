@@ -203,7 +203,7 @@ def redact_pdf_bytes(
                     continue
 
                 try:
-                    page.add_redact_annot(clamped_rect, fill=(1, 1, 1))
+                    page.add_redact_annot(clamped_rect, fill=None)
                     rectangles_applied += 1
                 except Exception as e:
                     logger.warning(
