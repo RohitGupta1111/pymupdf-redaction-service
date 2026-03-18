@@ -78,6 +78,33 @@ def _bbox_intersects_page(page_rect: fitz.Rect, bbox: tuple[float, float, float,
     return True
 
 
+def _extract_exact_fill_from_drawings(drawings, bbox):
+    x0, y0, x1, y1 = bbox
+
+    best_fill = None
+    best_area = float("inf")
+
+    for d in drawings:
+        fill = d.get("fill")
+        rect = d.get("rect")
+
+        if fill is None or rect is None:
+            continue
+
+        rx0, ry0, rx1, ry1 = rect
+
+        # drawing must fully cover the bbox
+        if rx0 <= x0 and ry0 <= y0 and rx1 >= x1 and ry1 >= y1:
+            area = (rx1 - rx0) * (ry1 - ry0)
+
+            # choose the smallest covering rect (most specific background)
+            if area < best_area:
+                best_fill = fill
+                best_area = area
+
+    return best_fill
+
+
 def redact_pdf_bytes(
     pdf_bytes: bytes,
     rectangles: list[RedactionRectangle],
@@ -131,6 +158,7 @@ def redact_pdf_bytes(
             page = doc[page_index]
             page_rect = page.rect
             H = page_rect.height
+            drawings = page.get_drawings()
 
             if debug_logs_enabled(settings):
                 logger.debug(
@@ -208,7 +236,10 @@ def redact_pdf_bytes(
                     continue
 
                 try:
-                    page.add_redact_annot(clamped_rect, fill=None)
+                    fill_tuple = _extract_exact_fill_from_drawings(drawings, bbox)
+                    if fill_tuple is None:
+                        fill_tuple = (1.0, 1.0, 1.0)
+                    page.add_redact_annot(clamped_rect, fill=fill_tuple)
                     rectangles_applied += 1
                 except Exception as e:
                     logger.warning(
