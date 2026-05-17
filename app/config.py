@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     PORT: int = 8080
     ENABLE_DEBUG_REDACTION_LOGS: bool = False
 
+    # Extraction subsystem (isolated from redaction limits)
+    MAX_EXTRACT_PDF_MB: int = 50
+    MAX_EXTRACT_PAGES: int = 500
+    EXTRACT_FETCH_TIMEOUT_SECONDS: int = 60
+    EXTRACT_PROCESS_TIMEOUT_SECONDS: int = 120
+    ENABLE_DEBUG_EXTRACTION_LOGS: bool = False
+
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -11,16 +11,19 @@ from app.schemas import RedactPdfRequest, RedactPdfResponse
 from app.security import require_api_key
 from app.redactor import redact_pdf_bytes
 from app.logging_config import setup_logging
+from app.api.extract import router as extract_router
 
 # Setup logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="PyMuPDF PDF Redaction Service",
-    description="Microservice for applying true redactions to PDFs using PyMuPDF",
+    title="PyMuPDF PDF Service",
+    description="PDF redaction and structured extraction using PyMuPDF",
     version="1.0.0"
 )
+
+app.include_router(extract_router)
 
 
 @app.get("/health")
